@@ -8,6 +8,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.idevicesinc.sweetblue.BleDevice;
+
 
 /**
  * A simple {@link Fragment} subclass.
