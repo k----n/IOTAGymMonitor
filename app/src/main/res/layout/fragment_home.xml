@@ -229,6 +229,13 @@
             android:text="@string/empty_dbm"
             android:textAppearance="@android:style/TextAppearance.Material.Small" />
 
+        <Space
+            android:layout_width="wrap_content"
+            android:layout_height="80dp"
+            android:layout_below="@id/BeaconCRSSIValue"/>
+
     </RelativeLayout>
+
+
 
 </FrameLayout>

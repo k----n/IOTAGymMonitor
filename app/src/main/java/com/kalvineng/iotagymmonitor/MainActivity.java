@@ -25,6 +25,9 @@ import com.idevicesinc.sweetblue.utils.Uuids;
 import java.util.Arrays;
 import java.util.Locale;
 
+import jota.IotaAPI;
+import jota.dto.response.GetNodeInfoResponse;
+
 public class MainActivity extends AppCompatActivity {
 
     private TextView mTextMessage;
@@ -42,10 +45,6 @@ public class MainActivity extends AppCompatActivity {
                 case R.id.navigation_home:
                     manager.beginTransaction().replace(R.id.fragment_container, new Home(), "HOME").commit();
                     current = fragments.HOME;
-                    return true;
-                case R.id.navigation_devices:
-                    manager.beginTransaction().replace(R.id.fragment_container, new DevicesFragment(), "DEVICES").commit();
-                    current = fragments.DEVICES;
                     HRMconnected = false;
                     return true;
                 case R.id.navigation_iota:
@@ -59,10 +58,6 @@ public class MainActivity extends AppCompatActivity {
     };
 
     void BLEdevices() {
-        BleManager.get(this.getApplicationContext()).setConfig(new BleManagerConfig()
-        {{
-            scanMode = BleScanMode.LOW_POWER;
-        }});
 
         final BleManager.DiscoveryListener discoveryListener = new BleManager.DiscoveryListener() {
             @Override
@@ -72,7 +67,39 @@ public class MainActivity extends AppCompatActivity {
                     TextView tQuality;
                     TextView tRSSI;
 
+                    Log.d("MAC",e.macAddress());
+
                     switch (e.macAddress()) {
+                        case "DF:10:46:09:32:A8":
+                            if (!HRMconnected) {
+                                    e.device().connect(new BleDevice.StateListener() {
+                                        @Override
+                                        public void onEvent(StateEvent e) {
+                                            if (e.didEnter(BleDeviceState.INITIALIZED)) {
+                                                e.device().enableNotify(Uuids.HEART_RATE_MEASUREMENT, new BleDevice.ReadWriteListener() {
+                                                    @Override
+                                                    public void onEvent(ReadWriteEvent e) {
+                                                        if (e.wasSuccess() && !e.isNull()) {
+                                                            try {
+                                                                /* Heart rate data has been retrieved */
+                                                                Log.d("CURRENT", current.toString());
+                                                                if (current.equals(fragments.HOME)) {
+                                                                    Log.d("BPM", Byte.toString(e.data()[1]));
+                                                                    TextView t = (TextView) findViewById(R.id.heartRate);
+                                                                    t.setText(String.format(Locale.US, "%d", e.data()[1]));
+                                                                }
+                                                            } catch (Exception err) {
+                                                                Log.i("hrdebug", "Caught exception: " + err.toString());
+                                                            }
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    });
+                                    HRMconnected = true;
+                                }
+                            break;
                         case "C7:ED:53:AD:0B:DB":
                             tDistance = (TextView) findViewById(R.id.BeaconADistanceValue);
                             tDistance.setText(String.format(Locale.US, "%.2fm", e.device().getDistance().meters()));
@@ -103,37 +130,6 @@ public class MainActivity extends AppCompatActivity {
                             tRSSI = (TextView) findViewById(R.id.BeaconCRSSIValue);
                             tRSSI.setText(String.format(Locale.US,"%ddBm",e.device().getRssi()));
                             break;
-                        case "DF:10:46:09:32:A8":
-                            if (!HRMconnected) {
-                                if (e.was(LifeCycle.DISCOVERED)) {
-                                    e.device().connect(new BleDevice.StateListener() {
-                                        @Override
-                                        public void onEvent(StateEvent e) {
-                                            if (e.didEnter(BleDeviceState.INITIALIZED)) {
-                                                e.device().enableNotify(Uuids.HEART_RATE_MEASUREMENT, new BleDevice.ReadWriteListener() {
-                                                    @Override
-                                                    public void onEvent(ReadWriteEvent e) {
-                                                        if (e.wasSuccess() && !e.isNull()) {
-                                                            try {
-                                                                /* Heart rate data has been retrieved */
-                                                                if (current.equals(fragments.HOME)) {
-                                                                    Log.d("BPM", Byte.toString(e.data()[1]));
-                                                                    TextView t = (TextView) findViewById(R.id.heartRate);
-                                                                    t.setText(String.format(Locale.US, "%d", e.data()[1]));
-                                                                }
-                                                            } catch (Exception err) {
-                                                                Log.i("hrdebug", "Caught exception: " + err.toString());
-                                                            }
-                                                        }
-                                                    }
-                                                });
-                                            }
-                                        }
-                                    });
-                                    HRMconnected = true;
-                                }
-                            }
-                            break;
                         default:
                             break;
 
@@ -142,21 +138,29 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        BleManager.get(this.getApplicationContext()).startPeriodicScan(Interval.FIVE_SECS, Interval.ONE_SEC,
+        BleManager.get(this.getApplicationContext()).startScan(
                 new BleManagerConfig.ScanFilter()
         {
             @Override public Please onEvent(ScanEvent e)
             {
-                if (HRMconnected) {
-                    return Please.acknowledgeIf(e.macAddress().equals("C7:ED:53:AD:0B:DB") ||
-                            e.macAddress().equals("C2:06:E6:D9:FD:2A") ||
-                            e.macAddress().equals("C1:E0:C2:99:BC:DE"));
-                } else {
-                    return Please.acknowledgeIf(e.macAddress().equals("DF:10:46:09:32:A8"));
-                }
+                return Please.acknowledgeIf(e.macAddress().equals("C7:ED:53:AD:0B:DB") ||
+                        e.macAddress().equals("C2:06:E6:D9:FD:2A") ||
+                        e.macAddress().equals("C1:E0:C2:99:BC:DE") ||
+                        e.macAddress().equals("DF:10:46:09:32:A8"));
             }
         }, discoveryListener);
 
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+
+
+
+        HRMconnected = false;
+
+        BLEdevices();
     }
 
     @Override
@@ -169,10 +173,11 @@ public class MainActivity extends AppCompatActivity {
         {
             @Override public Please onEvent(BluetoothEnablerEvent e)
             {
-//                if( e.isDone() )
-//                {
-//                    e.bleManager().startScan(scanFilter, discoveryListener);
-//                }
+                if( e.isDone())
+                {
+                    HRMconnected = false;
+                    BLEdevices();
+                }
 
                 return super.onEvent(e);
             }
@@ -180,8 +185,6 @@ public class MainActivity extends AppCompatActivity {
 
         manager = getSupportFragmentManager();
         manager.beginTransaction().replace(R.id.fragment_container, new Home()).commit();
-
-        BLEdevices();
 
         BottomNavigationView navigation = (BottomNavigationView) findViewById(R.id.navigation);
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
