@@ -1,0 +1,62 @@
+<!DOCTYPE HTML> 
+<html lang="en"> 
+<head> 
+<meta http-equiv="content-type" content="text/html; charset=utf-8"> 
+<title>Mam</title> 
+</head> 
+<body>
+<script src="mam.web.min.js"></script>
+<script src="iota.js"></script>
+<script>
+// https://stackoverflow.com/a/3855394
+var qs = (function(a) {
+    if (a == "") return {};
+    var b = {};
+    for (var i = 0; i < a.length; ++i)
+    {
+        var p=a[i].split('=', 2);
+        if (p.length == 1)
+            b[p[0]] = "";
+        else
+            b[p[0]] = decodeURIComponent(p[1].replace(/\+/g, " "));
+    }
+    return b;
+})(window.location.search.substr(1).split('&'));
+
+const iota = new IOTA({ provider: `https://testnet140.tangle.works` })
+
+// Initialise MAM State
+let mamState = Mam.init(iota)
+
+if (qs['state']){
+mamState = JSON.parse(JSON.parse(qs['state']))
+} else {
+    console.log(Mam.getRoot(mamState))
+    console.log("###"+JSON.stringify(mamState))
+    console.log("##")
+}
+
+
+let root = ''
+if (qs['root']){
+root = qs['root'] 
+} 
+
+const execute = async () => {
+    // Publish and save root.
+    const trytes = iota.utils.toTrytes(qs['packet'])
+    const message = Mam.create(mamState, trytes)
+    mamState = message.state
+    await Mam.attach(message.payload, message.address)
+    root = message.root
+    console.log("##"+root)
+    console.log("###"+JSON.stringify(mamState))
+}
+
+if (qs['packet']){
+execute()
+}
+
+</script>
+</body> 
+</html>
